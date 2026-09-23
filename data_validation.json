@@ -1,0 +1,74 @@
+{
+  "trade_fills": 1268435,
+  "symbols": {
+    "XBTUSD": {
+      "fills": 941007,
+      "groups": 24680,
+      "orderKeys": 18416,
+      "totalContracts": 23574456258,
+      "lastPosition": -29080100,
+      "positionReconciliation": "all fills equal prior validated ledger",
+      "candles": {
+        "1m": {
+          "bars": 2059200,
+          "missing": 9072
+        },
+        "5m": {
+          "bars": 411840,
+          "missing": 1819
+        },
+        "15m": {
+          "bars": 137280,
+          "missing": 531
+        },
+        "1h": {
+          "bars": 34320,
+          "missing": 144
+        },
+        "4h": {
+          "bars": 8766,
+          "missing": 36
+        },
+        "1d": {
+          "bars": 1461,
+          "missing": 1
+        }
+      }
+    },
+    "ETHUSD": {
+      "fills": 327428,
+      "groups": 4467,
+      "orderKeys": 2656,
+      "totalContracts": 170343814,
+      "lastPosition": 0,
+      "positionReconciliation": "all fills equal prior validated ledger",
+      "candles": {
+        "1m": {
+          "bars": 2059200,
+          "missing": 9073
+        },
+        "5m": {
+          "bars": 411840,
+          "missing": 1819
+        },
+        "15m": {
+          "bars": 137280,
+          "missing": 531
+        },
+        "1h": {
+          "bars": 34320,
+          "missing": 144
+        },
+        "4h": {
+          "bars": 8766,
+          "missing": 36
+        },
+        "1d": {
+          "bars": 1461,
+          "missing": 1
+        }
+      }
+    }
+  },
+  "method": "Contiguous fills of one identifiable order are grouped within each UTC 1-minute bar. Quantity is actual filled contracts, not submitted order size. 1m is Binance official history; 5m requires five complete 1m bars. EMA uses SMA seed and recursive alpha=2/(N+1), resets on gaps, and is computed over the entire available history before slicing the viewport."
+}

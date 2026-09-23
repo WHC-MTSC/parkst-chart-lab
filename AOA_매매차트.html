@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><script>if(new URLSearchParams(location.search).get("embed")==="1")document.documentElement.dataset.embedded="true";</script><meta name="viewport" content="width=device-width,initial-scale=1"><title>AOA 매매 복기 차트</title><link rel="stylesheet" href="chart.css"></head>
+<body>
+<header><div><h1>매매기록</h1><p class="sub">2018–2021 · Binance 봉과 BitMEX 실제 체결 기록</p></div><a href="trainer.html" class="offline">블라인드 매매테스트 ↗</a></header>
+<main>
+<section class="toolbar" aria-label="차트 설정">
+<label>종목 <select id="symbol"><option value="XBTUSD">BTC · XBTUSD</option><option value="ETHUSD">ETH · ETHUSD</option></select></label>
+<div class="timeframes" aria-label="시간봉"><button data-tf="1m">1분</button><button data-tf="5m">5분</button><button data-tf="15m">15분</button><button data-tf="1h" class="active">1시간</button><button data-tf="4h">4시간</button><button data-tf="1d">일봉</button></div>
+<label>날짜 · KST <input id="date" type="date" value="2021-05-19" min="2018-03-05" max="2021-12-31"></label><button id="go" class="primary">이동</button>
+<div class="nav"><button id="previous" title="이전 체결 구간">← 이전 체결</button><button id="next">다음 체결 →</button></div>
+</section>
+<section class="position-context" aria-label="선택한 포지션">
+<div class="position-overview"><div id="positionIdentity" class="position-tags"></div><p id="positionPeriod"></p><p id="positionStats"></p></div>
+<div class="position-controls"><div><button id="positionPrevious">← 이전 포지션</button><button id="positionNext">다음 포지션 →</button></div><div><button id="positionFocus">진입~종료 구간 맞춤</button><label><input type="checkbox" id="onlyPosition">이 포지션만 보기</label></div></div>
+</section>
+<section class="chartcard">
+<div class="chartbar"><div><strong id="chartTitle">BTCUSDT · 1시간</strong><span id="rangeLabel"></span></div><div class="rangebuttons"><button data-days="2">2일</button><button data-days="7" class="active">7일</button><button data-days="30">30일</button><button data-days="180">6개월</button><button id="all">전체</button></div></div>
+<div class="legend"><span class="buy">롱 포지션</span><span class="sell">숏 포지션</span><span>▲▼ 진입 · ● 추가 · ■ 축소·종료</span><label><input type="checkbox" id="labels" checked>번호·행동·수량</label><label><input type="checkbox" id="markers" checked>매매 표식</label></div>
+<div class="emabar"><form id="emaForm"><strong>EMA</strong><label for="emaPeriod">기간</label><input id="emaPeriod" type="number" min="2" max="1000" step="1" value="20" aria-label="EMA 기간"><span>봉</span><button id="emaAdd" type="submit">+ 추가</button></form><div id="emaList" aria-label="추가한 EMA"></div><span id="emaStatus" role="status">기본 꺼짐 · 원하는 기간만 추가하세요</span></div>
+<div id="windowNote" class="window-note" hidden></div>
+<div id="ohlc" class="ohlc">차트 위에 마우스를 올리면 가격을 확인할 수 있습니다.</div>
+<div id="priceChart" aria-label="캔들 및 매매 차트"></div>
+<div class="positionbar"><strong>보유 포지션 <small>백만 계약 · 양수 롱 / 음수 숏</small></strong><label><input type="checkbox" id="extremes">봉 안의 최대·최소 수량</label></div>
+<div id="positionChart" aria-label="보유 수량 차트"></div>
+<div id="status" role="status">데이터를 불러오고 있습니다.</div>
+<p class="hint">휠로 확대·축소, 드래그로 이동 · 봉 또는 표식을 누르면 해당 시간대 체결을 볼 수 있습니다. 확대하면 수량 라벨이 나타납니다.</p>
+</section>
+<section class="detailgrid">
+<article class="selected"><h2 id="detailTitle">매매를 선택하세요</h2><div id="detailBody">차트의 매매 표식이나 아래 목록을 누르세요.</div></article>
+<article class="bucket"><div class="sectionhead"><h2 id="bucketTitle">선택한 봉의 체결</h2><span id="bucketSummary"></span></div><div id="bucketList"></div></article>
+</section>
+<section class="tablecard"><div class="sectionhead"><div><h2>지금 보이는 구간의 매매</h2><p>포지션 번호별로 묶었습니다. 같은 번호는 진입부터 종료까지 이어진 거래입니다.</p></div><label>종류 <select id="actionFilter"><option value="all">전체</option><option value="entry">최초 진입</option><option value="add">추가 체결</option><option value="reduce">부분 축소</option><option value="close">전체 종료</option><option value="reverse">방향 반전</option></select></label></div>
+<div class="tablewrap"><table><thead><tr><th>체결 시작 · KST</th><th>행동</th><th>포지션</th><th>체결 계약</th><th>평균 체결가</th><th>체결 후 포지션</th><th>체결 건수</th></tr></thead><tbody id="tradeRows"></tbody></table></div><div class="pagination"><span id="tableCount"></span><button id="pagePrev">이전 페이지</button><button id="pageNext">다음 페이지</button></div></section>
+<details class="method"><summary>데이터와 읽는 방법</summary><div>
+<p><b>수량:</b> 주문 요청량이 아닌 실제 체결 계약 수량입니다. 같은 주문이 여러 봉에 걸쳐 체결되면 각 시간대에 나누어 표시합니다. 한 봉의 같은 포지션 번호·행동은 합산합니다. 한 봉에 거래가 많으면 요약 표식으로 묶고, 클릭 시 세부 내역을 보여줍니다. 자세한 체결 시각은 오른쪽 패널에서 확인하세요.</p>
+<p><b>포지션 번호:</b> 종목별로 진입부터 전량 종료까지 같은 번호를 유지합니다. 반전하면 기존 번호를 닫고 새 번호를 시작하며, 반전 체결 수량은 종료분과 신규 진입분으로 나눠 차트에 표시합니다. 시간봉을 바꿔도 번호는 유지됩니다. ‘이 포지션만 보기’는 차트 표식과 체결 목록에 적용되며, 가격 봉과 전체 보유 수량 선은 그대로 표시합니다.</p>
+<p><b>행동:</b> 묶은 체결 직전·직후 포지션으로 진입, 추가, 축소, 종료, 반전을 구분합니다. 최초 주문의 후속 체결도 이미 포지션이 있으면 ‘추가’가 될 수 있습니다. 반전 수량에는 기존 포지션 청산과 반대 방향 신규 진입이 함께 포함됩니다.</p>
+<p><b>가격·시간:</b> 봉은 Binance 현물 BTCUSDT·ETHUSDT, 매매는 BitMEX XBTUSD·ETHUSD입니다. 서로 다른 상품이어서 체결가가 봉 밖에 있을 수 있습니다. 봉 경계는 UTC, 화면 시각은 한국 시간입니다. 일봉은 KST 오전 9시에 시작합니다. 과거 봉의 완성된 OHLCV를 보여주는 복기 차트이며 당시 알 수 있었던 정보만 보여주는 재생 모드는 아닙니다.</p>
+<p><b>포지션:</b> 아래 선은 각 봉 종료 시점의 계약 수량이며 해당 봉의 시작 위치에 표시합니다. 옵션을 켜면 봉 안의 최대·최소 수량을 함께 봅니다. 계좌 잔고·증거금·레버리지와는 다릅니다.</p>
+<p><b>EMA:</b> 기본 화면에는 표시하지 않습니다. 기간 2~1,000을 입력해 최대 6개를 추가하고, 각 체크박스로 켜거나 끄고 ×로 삭제합니다. 기간은 현재 선택한 봉의 개수입니다. 종가 기준이며 첫 N개 종가의 단순평균으로 시작한 뒤 α=2/(N+1)로 계산합니다. 화면 밖의 과거 데이터도 계산에 포함하여 날짜 이동·확대에 따라 값이 바뀌지 않습니다. 누락 봉에서는 계산을 끊고 N개의 연속 종가가 쌓이면 다시 시작합니다.</p>
+<p><b>범위·누락:</b> 1분봉은 <a href="https://github.com/binance/binance-public-data" target="_blank" rel="noreferrer">Binance 공식 과거 데이터</a>이며 5분봉은 빠짐없는 1분봉 5개로 합성했습니다. 15분 원본에서 1시간봉을 합성했고 4시간·일봉은 원본을 사용했습니다. 누락·비정규 종료 봉은 빈칸으로 유지하며 그 시간의 매매는 표시합니다. 1분·5분·15분·1시간은 2018년 2월부터, 4시간·일봉은 2018년 1월부터 2021년 말까지입니다. 1분은 최대 31일, 5분은 최대 180일씩 표시하며 드래그·날짜 이동으로 전체 기간을 탐색합니다. ‘전체 · 일봉’은 일봉으로 전체 기간을 엽니다.</p>
+<p><a href="data_validation.json">데이터 검증 결과</a> · <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer">Charts by TradingView Lightweight Charts™</a> · <a href="LICENSE-lightweight-charts.txt">라이선스</a></p>
+</div></details><footer class="method"><a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">TradingView Lightweight Charts™</a> · Copyright (с) 2024 TradingView, Inc. · <a href="LICENSE-lightweight-charts.txt">Apache License 2.0</a> · <a href="NOTICE-lightweight-charts.txt">NOTICE</a></footer>
+</main><script>window.CHART_DATA={};</script><script src="lightweight-charts.js"></script><script src="position-labels.js"></script><script src="chart.js"></script><script>
+if(document.documentElement.dataset.embedded==='true'&&window.parent!==window){
+ const reportSize=()=>{const height=Math.ceil(document.body.getBoundingClientRect().height);if(height>100)window.parent.postMessage({type:'parkst:chart-height',height},'*');};
+ new ResizeObserver(reportSize).observe(document.body);reportSize();
+}
+</script></body></html>
