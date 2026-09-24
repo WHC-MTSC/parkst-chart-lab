@@ -15,7 +15,9 @@ const cycleOf=id=>positions.cycles[id-1];
 const badge=id=>{const c=cycleOf(id);return c?`<span class="position-badge ${c.side>0?'is-long':'is-short'}">${P.direction(c.side)} #${c.id}</span>`:'';};
 const eventBadges=i=>positions.records[i].cycleIds.map(badge).join('<span class="position-arrow">→</span>');
 let symbol='XBTUSD',tf='1h',bars=[],events=[],orders=[],barMap=new Map(),bins=new Map(),selected=-1,page=0,filtered=[],loading=0,syncing=false,updating=true,selectionLine=null;
-const loaded=new Map();
+const loaded=new Map(),positionModels=new WeakMap();
+function lowerBound(rows,time){let lo=0,hi=rows.length;while(lo<hi){const mid=(lo+hi)>>>1;if(rows[mid][0]<time)lo=mid+1;else hi=mid;}return lo;}
+function sliceWindow(rows,from,to){return rows.slice(lowerBound(rows,from),lowerBound(rows,to));}
 const maxDays={'1m':31,'5m':180};
 let bounds=null,activeChunks=new Set(),emaVersion=0,emaBusy=false;
 const emas=[],emaCache=new Map();
@@ -32,6 +34,7 @@ const pseries=pchart.addLineSeries({color:'#274b58',lineWidth:2,lineType:1,price
 const plow=pchart.addLineSeries({color:'#b5c8bf',lineWidth:1,lineStyle:2,lineType:1,priceLineVisible:false,lastValueVisible:false,visible:false,crosshairMarkerVisible:false});
 const phigh=pchart.addLineSeries({color:'#b5c8bf',lineWidth:1,lineStyle:2,lineType:1,priceLineVisible:false,lastValueVisible:false,visible:false,crosshairMarkerVisible:false});
 pseries.createPriceLine({price:0,color:'#98afa5',lineWidth:1,lineStyle:2,axisLabelVisible:false});
+window.ParkstTheme?.bind([chart,pchart],p=>{pseries.applyOptions({color:p.position});plow.applyOptions({color:p.extreme});phigh.applyOptions({color:p.extreme});});
 new ResizeObserver(()=>{chart.resize($('priceChart').clientWidth,$('priceChart').clientHeight);pchart.resize($('positionChart').clientWidth,$('positionChart').clientHeight);}).observe($('priceChart'));
 async function unpack(raw){
  if(raw?.encoding!=='f64-gzip')return raw;
@@ -69,7 +72,7 @@ function clampRange(r,limits=bounds,interval=tf){
 async function focus(t,days){
  const r=range(),span=days?days*86400:r?r.to-r.from:7*86400;
  const next=clampRange({from:t-span*.5,to:t+span*.5});
- if(maxDays[tf])await refresh(true,next);else setRange(next);
+ await refresh(true,next);
 }
 function bucketOf(e){return Math.floor(e[0]/1000/secs[tf])*secs[tf];}
 function prepareBins(){
@@ -112,13 +115,13 @@ function markerUpdate(){
 }
 let timer;function schedule(){clearTimeout(timer);timer=setTimeout(()=>{if(updating)return;markerUpdate();renderTable();updateStatus();ensureWindow();},160);}
 function ensureWindow(){
- if(!maxDays[tf]||updating||!bars.length)return;
- const r=range(),margin=86400;
- if(r.to-r.from>maxDays[tf]*86400+secs[tf]||(r.from<bars[0][0]+margin&&bars[0][0]>bounds.from)||(r.to>bars.at(-1)[0]-margin&&bars.at(-1)[0]<bounds.to))refresh(true,r);
+ if(updating||!bars.length)return;
+ const r=range(),margin=Math.max(secs[tf]*2,86400);
+ if(r.to-r.from>(maxDays[tf]||Infinity)*86400+secs[tf]||(r.from<bars[0][0]+margin&&bars[0][0]>bounds.from)||(r.to>bars.at(-1)[0]-margin&&bars.at(-1)[0]<bounds.to))refresh(true,r);
 }
 chart.timeScale().subscribeVisibleTimeRangeChange(r=>{if(!r||syncing||updating)return;syncing=true;pchart.timeScale().setVisibleRange(r);syncing=false;page=0;schedule();});
 pchart.timeScale().subscribeVisibleTimeRangeChange(r=>{if(!r||syncing||updating)return;syncing=true;chart.timeScale().setVisibleRange(r);syncing=false;page=0;schedule();});
-function updateStatus(){const r=range();if(!r)return;$('rangeLabel').textContent=when(r.from).slice(0,16)+' – '+when(r.to).slice(0,16)+' KST';const view=bars.filter(b=>b[0]>=r.from&&b[0]<=r.to),missing=view.filter(b=>b[4]===null).length;$('status').textContent=`표시 구간 ${view.length.toLocaleString()}봉 · 누락 ${missing}봉 · 체결 묶음 ${filtered.length.toLocaleString()}개 · 수량은 계약 단위`;}
+function updateStatus(){const r=range();if(!r)return;$('rangeLabel').textContent=when(r.from).slice(0,16)+' – '+when(r.to).slice(0,16)+' KST';const view=sliceWindow(bars,r.from,r.to+1),missing=view.filter(b=>b[4]===null).length;$('status').textContent=`표시 구간 ${view.length.toLocaleString()}봉 · 누락 ${missing}봉 · 체결 묶음 ${filtered.length.toLocaleString()}개 · 수량은 계약 단위`;}
 function tooltip(p){if(!p.time){$('ohlc').textContent='차트 위에 마우스를 올리면 가격과 보유 수량을 확인할 수 있습니다.';return;}const b=barMap.get(Number(p.time));if(!b)return;const text=b[4]===null?'가격 봉 누락':`O ${num(b[1])}  H ${num(b[2])}  L ${num(b[3])}  C ${num(b[4])}  V ${num(b[5])}`;$('ohlc').textContent=`${when(b[0]).slice(0,16)} KST · ${text} · 종료 보유 ${pos(b[6])} · 봉 내 ${num(b[7])} ~ ${num(b[8])}`;}
 chart.subscribeCrosshairMove(p=>{tooltip(p);if(p.time&&barMap.has(Number(p.time)))pchart.setCrosshairPosition(barMap.get(Number(p.time))[6]/1e6,p.time,pseries);else pchart.clearCrosshairPosition();});
 pchart.subscribeCrosshairMove(p=>{tooltip(p);});
@@ -140,7 +143,7 @@ async function focusPosition(id=activePosition){
  activePosition=id;selectEvent(c.firstIndex,false);page=0;
  const end=c.end??events[c.lastIndex][1]/1000,pad=Math.max(secs[tf]*10,(end-c.start)*.2);
  const next=clampRange({from:c.start-pad,to:end+pad});
- if(maxDays[tf])await refresh(true,next,events[c.firstIndex][0]);else setRange(next);
+ await refresh(true,next,events[c.firstIndex][0]);
 }
 function showBucket(t,choose=false){
  const b=bins.get(t);$('bucketTitle').textContent=when(t).slice(0,16)+' · '+names[tf]+'봉';
@@ -171,7 +174,7 @@ function selectEvent(i,move=true){
 }
 function renderTable(){
  const r=range();if(!r)return;const action=$('actionFilter').value,only=$('onlyPosition').checked;filtered=[];
- events.forEach((e,i)=>{const t=e[0]/1000;if(t>=r.from&&t<r.to+secs[tf]&&(action==='all'||e[9]===action)&&(!only||positions.records[i].cycleIds.includes(activePosition)))filtered.push(i);});
+ for(let i=lowerBound(events,r.from*1000),end=lowerBound(events,(r.to+secs[tf])*1000);i<end;i++){const e=events[i];if((action==='all'||e[9]===action)&&(!only||positions.records[i].cycleIds.includes(activePosition)))filtered.push(i);}
  const size=60,total=Math.ceil(filtered.length/size);page=Math.max(0,Math.min(page,Math.max(0,total-1)));let previous=null;
  $('tradeRows').innerHTML=filtered.slice(page*size,(page+1)*size).map(i=>{
   const e=events[i],m=positions.records[i],id=only?activePosition:m.primaryCycleId,c=cycleOf(id),separator=id!==previous;previous=id;
@@ -205,7 +208,8 @@ async function updateEMAs(preserveRange=null){
  if(!enabled.length){emaBusy=false;return;}
  emaBusy=true;$('emaStatus').textContent='전체 과거 종가로 EMA 계산 중…';
  try{
-  const history=maxDays[currentTF]?await load(currentSymbol+'_'+currentTF+'_closes'):{start:bars[0][0],step:secs[currentTF],values:Float64Array.from(bars,b=>b[4]===null?NaN:b[4])};
+  const fullMarket=maxDays[currentTF]?null:await load(currentSymbol+'_'+currentTF);
+  const history=maxDays[currentTF]?await load(currentSymbol+'_'+currentTF+'_closes'):{start:fullMarket[0][0],step:secs[currentTF],values:Float64Array.from(fullMarket,b=>b[4]===null?NaN:b[4])};
   if(version!==emaVersion||marketVersion!==loading)return;
   const prefix=currentSymbol+'_'+currentTF+'_';
   for(const key of emaCache.keys())if(!key.startsWith(prefix))emaCache.delete(key);
@@ -265,15 +269,15 @@ async function refresh(keep=true,requested=null,targetTime=null){
    const pad=Math.max(2*86400,(r.to-r.from)*.2);
    keys=market.chunks.filter(c=>c.to>=r.from-pad&&c.from<=r.to+pad).map(c=>c.key);
    rows=(await Promise.all(keys.map(load))).flat();
-  }
+  }else if(currentTF!=='1d'){const pad=Math.max(2*86400,(r.to-r.from)*.5);rows=sliceWindow(market,r.from-pad,r.to+pad+secs[currentTF]);}
   if(token!==loading)return;
-  bounds=limits;activeChunks=new Set(keys);bars=rows;events=executions.events;orders=executions.orders;positions=P.build(events);
+  bounds=limits;activeChunks=new Set(keys);bars=rows;events=executions.events;orders=executions.orders;if(!positionModels.has(events))positionModels.set(events,P.build(events));positions=positionModels.get(events);
   barMap=new Map(bars.map(b=>[b[0],b]));
   if(selectionLine){candle.removePriceLine(selectionLine);selectionLine=null;}
   for(const a of anchors){a.setMarkers([]);a.setData([]);}
   for(const e of emas)e.series.setData([]);
   candle.setData(bars.map(b=>b[4]===null?{time:b[0]}:{time:b[0],open:b[1],high:b[2],low:b[3],close:b[4]}));
-  volume.setData(bars.map(b=>b[4]===null?{time:b[0]}:{time:b[0],value:b[5],color:b[4]>=b[1]?'#d4e7df':'#f0dcd6'}));
+  volume.setData(bars.map(b=>b[4]===null?{time:b[0]}:{time:b[0],value:b[5],color:b[4]>=b[1]?'#188c7b55':'#cf665c55'}));
   pseries.setData(bars.map(b=>({time:b[0],value:b[6]/1e6})));
   plow.setData(bars.map(b=>({time:b[0],value:b[7]/1e6})));
   phigh.setData(bars.map(b=>({time:b[0],value:b[8]/1e6})));
@@ -309,7 +313,7 @@ $('positionPrevious').onclick=()=>focusPosition(activePosition-1);$('positionNex
 $('onlyPosition').onchange=()=>{page=0;markerUpdate();renderTable();if(selected>=0)showBucket(bucketOf(events[selected]));updateStatus();};
 $('previous').onclick=()=>selectEvent(selected-1);$('next').onclick=()=>selectEvent(selected+1);
 document.querySelectorAll('[data-days]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-days]').forEach(x=>x.classList.toggle('active',x===b));const r=range();focus(selected>=0?bucketOf(events[selected]):(r.from+r.to)/2,Number(b.dataset.days));});
-$('all').onclick=()=>{if(maxDays[tf]){tf='1d';refresh(true,{from:1514764800,to:1640908800});}else setRange(bounds);};
+$('all').onclick=()=>{if(maxDays[tf]){tf='1d';refresh(true,{from:1514764800,to:1640908800});}else refresh(true,bounds);};
 for(const id of['labels','markers'])$(id).onchange=markerUpdate;
 $('extremes').onchange=()=>{plow.applyOptions({visible:$('extremes').checked});phigh.applyOptions({visible:$('extremes').checked});};
 $('actionFilter').onchange=()=>{page=0;renderTable();updateStatus();};$('pagePrev').onclick=()=>{page--;renderTable();};$('pageNext').onclick=()=>{page++;renderTable();};

@@ -1,0 +1,18 @@
+:root{color-scheme:light;--surface:#fff;--ink:#16333b;--soft:#f3f6f3;--hover:#edf6f0}
+:root[data-theme=dark]{color-scheme:dark;--surface:#171d23;--ink:#e1e7ed;--soft:#202a32;--hover:#263c38;--muted:#a4b2bd;--border:#384650;--green:#57c9b1;--red:#f18c83;color:var(--ink);background:#11171c}
+html[data-theme=dark][data-embedded]{background:#11171c}
+[data-theme=dark] :is(button,select,input,textarea,.toolbar,.chartcard,.tablecard,.selected,.bucket,.position-context,.card,.replay-bar){background:var(--surface);color:var(--ink);border-color:var(--border)}
+[data-theme=dark] :is(.offline,.emachip,.window-note,.cycle-divider td,.reversal-note,th,.position-summary,.mode-badge){background:var(--soft);color:var(--muted)}
+[data-theme=dark] :is(button:hover,tbody tr:hover,tbody tr.selected,.bucketrow.selected){background:var(--hover)}
+[data-theme=dark] :is(button.active,.primary){background:#8ac9b6;color:#11251f;border-color:#8ac9b6}
+[data-theme=dark] :is(.ohlc,.position-overview #positionStats,.method summary,.cycle-divider .focus-link){color:#b9cad4}
+[data-theme=dark] :is(td,.bucketrow,.positionbar,.emabar,.saved-item,.cycle-divider td){border-color:var(--border)}
+[data-theme=dark] .position-badge.is-long,[data-theme=dark] .pill{background:#1d3c34;color:#78dbc1;border-color:#3e7867}
+[data-theme=dark] .position-badge.is-short,[data-theme=dark] .pill.sell{background:#422b2d;color:#f5aaa1;border-color:#815651}
+[data-theme=dark] :is(.action-reverse,.pending-summary,.mode-badge.finished){color:#dec077}
+[data-theme=dark] #orderMessage,[data-theme=dark] .error{color:#f5aaa1!important}
+[data-theme=dark] .trade-buttons .long{background:#226756;color:#fff;border-color:#39836f}
+[data-theme=dark] .trade-buttons .short{background:#874841;color:#fff;border-color:#ac6259}
+.theme-toggle{font:inherit;font-size:12px;white-space:nowrap;border:1px solid var(--border);border-radius:4px;padding:7px 10px;background:var(--surface);color:var(--ink);cursor:pointer}
+.toolbar>.theme-toggle{margin-left:auto}
+html[data-embedded] .theme-toggle{display:none}

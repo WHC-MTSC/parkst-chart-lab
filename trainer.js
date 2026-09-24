@@ -8,11 +8,12 @@ const positionPercent=(v,limit)=>v?P.direction(v)+' '+n(100*Math.abs(v)/limit)+'
 const trainBadge=(c,owner='내')=>c?`<span class="position-badge ${c.side>0?'is-long':'is-short'}">${owner} ${P.direction(c.side)} #${c.id}</span>`:'';
 const COLORS=['#d88e24','#626ac6','#b45c9b','#398cc0','#7b7542','#37536b'];
 const STORE='wonyotti-position-test-v2';
-const n=x=>Number.isFinite(x)?new Intl.NumberFormat('ko-KR',{maximumFractionDigits:2}).format(x):'—';
+const numberFormat=new Intl.NumberFormat('ko-KR',{maximumFractionDigits:2});
+const n=x=>Number.isFinite(x)?numberFormat.format(x):'—';
 const kst=t=>new Date((t+32400)*1000).toISOString().slice(0,19).replace('T',' ');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let session=null,tf='1h',bars=[],barMap=new Map(),busy=false,playing=false,playTimer=null,renderVersion=0,viewCursor=null,follow=true,emaPrefs=[],emaSeries=[],priceLines=[],aoa=[],benchmark=[];
-const emaCache=new Map(),catalogs=new Map();
+const emaCache=new Map(),catalogs=new Map(),emaLines=new Map(),benchmarkModels=new WeakMap();
 const chart=LightweightCharts.createChart($('trainingChart'),{height:$('trainingChart').clientHeight,layout:{background:{type:'solid',color:'#ffffff'},textColor:'#61767b',fontFamily:'Malgun Gothic, sans-serif',fontSize:11},grid:{vertLines:{color:'#f1f4f2'},horzLines:{color:'#edf2ef'}},rightPriceScale:{borderColor:'#dde6e1',minimumWidth:75},timeScale:{borderColor:'#dde6e1',timeVisible:true,secondsVisible:false,rightOffset:8},localization:{locale:'ko-KR',timeFormatter:t=>kst(t)},crosshair:{mode:0}});
 const candle=chart.addCandlestickSeries({upColor:'#188c7b',downColor:'#cf665c',wickUpColor:'#188c7b',wickDownColor:'#cf665c',borderVisible:false,priceLineVisible:false,lastValueVisible:false});
 candle.priceScale().applyOptions({scaleMargins:{top:.1,bottom:.2}});
@@ -24,6 +25,7 @@ new ResizeObserver(()=>chart.resize($('trainingChart').clientWidth,$('trainingCh
 const positionChart=LightweightCharts.createChart($('comparisonChart'),{height:150,layout:{background:{type:'solid',color:'#fff'},textColor:'#61767b',fontSize:11},grid:{vertLines:{color:'#f1f4f2'},horzLines:{color:'#edf2ef'}},timeScale:{timeVisible:true,secondsVisible:false},rightPriceScale:{minimumWidth:75},localization:{timeFormatter:t=>kst(t)}});
 const myPositionLine=positionChart.addLineSeries({color:'#386c9b',lineWidth:2,lineType:1,priceLineVisible:false,lastValueVisible:false,priceFormat:{type:'custom',formatter:v=>n(v)+'%'}});
 const referencePositionLine=positionChart.addLineSeries({color:'#b18b31',lineWidth:2,lineType:1,priceLineVisible:false,lastValueVisible:false,priceFormat:{type:'custom',formatter:v=>n(v)+'%'}});
+window.ParkstTheme?.bind([chart,positionChart]);
 new ResizeObserver(()=>positionChart.resize($('comparisonChart').clientWidth,150)).observe($('comparisonChart'));
 
 function message(text=''){ $('orderMessage').textContent=text; }
@@ -43,11 +45,11 @@ function updateControls(){
 function stored(){try{return JSON.parse(localStorage.getItem(STORE)||'[]').filter(S.validSession);}catch{return [];}}
 function persist(){
  if(!session)return;session.tf=tf;session.emas=emaPrefs.map(e=>({...e}));session.updated=Date.now();
- try{const list=stored().filter(s=>s.id!==session.id);list.unshift(session);localStorage.setItem(STORE,JSON.stringify(list.slice(0,20)));$('saveState').textContent='이 브라우저에 저장됨';}
- catch{$('saveState').textContent='저장 불가 · 테스트 파일을 내려받으세요';}renderSaved();
+ try{const list=stored().filter(s=>s.id!==session.id);list.unshift(session);localStorage.setItem(STORE,JSON.stringify(list.slice(0,20)));$('saveState').textContent='이 브라우저에 저장됨';renderSaved(list.slice(0,20));}
+ catch{$('saveState').textContent='저장 불가 · 테스트 파일을 내려받으세요';}
 }
-function renderSaved(){
- $('savedSessions').innerHTML=stored().map(s=>`<div class="saved-item"><div><b>${s.symbol==='XBTUSD'?'BTC':'ETH'} · ${NAME[s.baseTF]} 기준 · ${kst(s.start).slice(0,16)}</b><br><span>${s.status==='active'?'진행 중':'종료 · 포지션 유사도 '+n(s.result?.overlap)+(s.result?.overlap!=null?'%':'')}</span></div><button data-resume="${esc(s.id)}">${s.id===session?.id?'현재 테스트':s.status==='active'?'이어 하기':'비교 보기'}</button></div>`).join('')||'<p class="hint">저장한 테스트가 없습니다.</p>';
+function renderSaved(list=stored()){
+ $('savedSessions').innerHTML=list.map(s=>`<div class="saved-item"><div><b>${s.symbol==='XBTUSD'?'BTC':'ETH'} · ${NAME[s.baseTF]} 기준 · ${kst(s.start).slice(0,16)}</b><br><span>${s.status==='active'?'진행 중':'종료 · 포지션 유사도 '+n(s.result?.overlap)+(s.result?.overlap!=null?'%':'')}</span></div><button data-resume="${esc(s.id)}">${s.id===session?.id?'현재 테스트':s.status==='active'?'이어 하기':'비교 보기'}</button></div>`).join('')||'<p class="hint">저장한 테스트가 없습니다.</p>';
 }
 async function getCatalog(symbol){if(!catalogs.has(symbol)){const data=await D.load(symbol+'_events');catalogs.set(symbol,{events:data.events,episodes:C.episodes(data.events)});}return catalogs.get(symbol);}
 async function newSession(){
@@ -94,16 +96,17 @@ async function renderChart(reset=false){
  if(!session)return;const version=++renderVersion;setBusy(true);window.trainerReady=false;
  const currentSymbol=session.symbol,currentTF=tf,time=cutoff();$('trainStatus').textContent='현재 시각까지의 봉을 준비하고 있습니다…';
  try{
-  const result=await replayBars(currentSymbol,currentTF,time);
-  const latest=await D.windowData(currentSymbol,'1m',time-60,time);
+  const [result,latest]=await Promise.all([replayBars(currentSymbol,currentTF,time),D.windowData(currentSymbol,'1m',time-60,time)]);
   if(version!==renderVersion)return;
   bars=result.rows;barMap=new Map(bars.map(b=>[b[0],b]));
   if(!viewCursor)session.sim.lastPrice=latest[0]?.[4]??null;
   ownLine.setMarkers([]);ownLine.setData([]);aoaLine.setMarkers([]);aoaLine.setData([]);
-  for(const s of emaSeries)chart.removeSeries(s);emaSeries=[];
+  const enabledPeriods=new Set(emaPrefs.filter(p=>p.enabled).map(p=>p.period));
+  for(const [period,line] of emaLines)if(!enabledPeriods.has(period)){chart.removeSeries(line);emaLines.delete(period);}
+  emaSeries=[];
   for(const line of priceLines)candle.removePriceLine(line);priceLines=[];
   candle.setData(bars.map(b=>b[4]==null?{time:b[0]}:{time:b[0],open:b[1],high:b[2],low:b[3],close:b[4]}));
-  volume.setData(bars.map(b=>b[4]==null?{time:b[0]}:{time:b[0],value:b[5],color:b[4]>=b[1]?'#d5e8df':'#eeddd7'}));
+  volume.setData(bars.map(b=>b[4]==null?{time:b[0]}:{time:b[0],value:b[5],color:b[4]>=b[1]?'#188c7b55':'#cf665c55'}));
   if(emaPrefs.some(e=>e.enabled)){
    const history=await D.history(currentSymbol,currentTF);if(version!==renderVersion)return;
    const prefix=currentSymbol+'_'+currentTF+'_';
@@ -111,7 +114,8 @@ async function renderChart(reset=false){
    for(let i=0;i<emaPrefs.length;i++){
     const pref=emaPrefs[i];if(!pref.enabled)continue;
     const key=prefix+pref.period;if(!emaCache.has(key))emaCache.set(key,D.ema(history.values,pref.period));
-    const values=emaCache.get(key),line=chart.addLineSeries({color:COLORS[i],lineWidth:2,priceLineVisible:false,lastValueVisible:false,title:'EMA '+pref.period});
+    const values=emaCache.get(key);let line=emaLines.get(pref.period);
+    if(!line){line=chart.addLineSeries({color:COLORS[i],lineWidth:2,priceLineVisible:false,lastValueVisible:false,title:'EMA '+pref.period});emaLines.set(pref.period,line);}else line.applyOptions({color:COLORS[i]});
     const points=bars.map((b,j)=>{const value=result.partial&&j===bars.length-1?D.partialEMA(history,values,b[0],b[4],pref.period):values[Math.round((b[0]-history.start)/history.step)];return Number.isFinite(value)?{time:b[0],value}:{time:b[0]};});
     line.setData(points);emaSeries.push(line);
    }
@@ -206,9 +210,9 @@ function renderPanels(){
   $('answerSummary').textContent=`${NAME[session.baseTF]} ${c.offset}봉 전에서 시작 · 워뇨띠 첫 진입 ${kst(first[0]/1000)} KST (${first[8]>0?'롱':'숏'}) · 이 구간 최대 포지션 ${n(c.limit)} 계약`;
   const firstMatch=r.firstDirection==null?'내 첫 진입 없음':r.firstDirection?'첫 진입 방향 같음':'첫 진입 방향 다름';
   $('comparisonNote').textContent=(r.beforeEntry?'워뇨띠 진입 이전에 종료했습니다. ':'')+`${firstMatch}. ${r.activeMinutes}분의 보유 구간을 비교했습니다. 종료 후 차트에는 정답 구간 전체를 공개하며 점수는 진행한 구간만 비교합니다.`;
-  const ref=P.build(benchmark);
-  $('comparisonRows').innerHTML=benchmark.slice(c.entryIndex,c.exitIndex+1).slice(-500).map(e=>{
-   const i=benchmark.indexOf(e),r=ref.records[i];return `<tr><td>${kst(e[0]/1000)}</td><td>${r.label}<small class="execution-side">${e[2]===1?'매수':'매도'} 체결</small></td><td>${r.cycleIds.map(id=>trainBadge(ref.cycles[id-1],'워뇨띠')).join(' → ')}</td><td>${n(e[3])}</td><td>${positionPercent(e[7],c.limit)} → ${positionPercent(e[8],c.limit)}</td></tr>`;
+  if(!benchmarkModels.has(benchmark))benchmarkModels.set(benchmark,P.build(benchmark));const ref=benchmarkModels.get(benchmark);
+  $('comparisonRows').innerHTML=benchmark.slice(Math.max(c.entryIndex,c.exitIndex-499),c.exitIndex+1).map((e,offset)=>{
+   const i=Math.max(c.entryIndex,c.exitIndex-499)+offset,r=ref.records[i];return `<tr><td>${kst(e[0]/1000)}</td><td>${r.label}<small class="execution-side">${e[2]===1?'매수':'매도'} 체결</small></td><td>${r.cycleIds.map(id=>trainBadge(ref.cycles[id-1],'워뇨띠')).join(' → ')}</td><td>${n(e[3])}</td><td>${positionPercent(e[7],c.limit)} → ${positionPercent(e[8],c.limit)}</td></tr>`;
   }).join('');
  }
  updateControls();
@@ -259,6 +263,7 @@ $('exportJSON').onclick=()=>{if(!session)return;persist();download(`wonyotti-tes
 $('exportCSV').onclick=()=>{if(!session)return;const cell=x=>'"'+String(x??'').replace(/^[=+@-]/,"'$&").replace(/"/g,'""')+'"';const fills=ownFills(),model=P.build(fills,ownRead),meta=new Map(fills.map((e,i)=>[e,model.records[i]]));const rows=[['시각(KST)','행동','매수/매도','계약 수량','체결 후 비중(%)','판단 근거','시간봉'],...session.sim.logs.map(e=>[kst(e.time),meta.has(e)?meta.get(e).cycleIds.map(id=>'#'+id).join('→')+' '+meta.get(e).label:e.type,e.side===1?'매수':e.side===-1?'매도':'',e.qty??'',e.after==null?'':100*e.after/session.sim.limit,e.reason,e.timeframe||'']),...session.sim.decisions.filter(d=>d.kind==='observe').map(d=>[kst(d.time),'관망','','','',d.reason,d.timeframe])];download(`wonyotti-decisions-${session.id}.csv`,'\ufeff'+rows.map(r=>r.map(cell).join(',')).join('\r\n'),'text/csv;charset=utf-8');};
 $('importJSON').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>5e6)throw Error('파일은 5MB 이하만 지원합니다.');await restore(JSON.parse(await file.text()));message('테스트 기록을 불러왔습니다.');}catch(error){message(error.message);}finally{e.target.value='';}};
 $('reviewLink').onclick=()=>{if(session?.status==='active'){pause();S.cancel(session.sim,session.cursor);session.status='finished';persist();}};
+document.addEventListener('visibilitychange',()=>{if(document.hidden){pause();persist();}});
 window.addEventListener('pagehide',persist);window.addEventListener('message',event=>{if(window.parent!==window&&event.source===window.parent&&event.data?.type==='parkst:pause-replay'){pause();persist();}});
 window.trainingState=()=>({ready:window.trainerReady,busy,playing,tf,baseTF:session?.baseTF,symbol:session?.symbol,cursor:session?.cursor,viewCursor,status:session?.status,bars:bars.map(b=>b.slice()),emas:emaSeries.map(s=>s.data()),preferences:emaPrefs.map(p=>({...p})),position:session?.sim.position,pending:session?.sim.pending,logs:session?.sim.logs,decisions:session?.sim.decisions,aoaVisible:aoaLine.data().length,id:session?.id,result:session?.status==='finished'?session.result:null});
 (async()=>{const latest=stored()[0];if(latest)await restore(latest);else await newSession();})().catch(error=>{message(error.message);console.error(error);});

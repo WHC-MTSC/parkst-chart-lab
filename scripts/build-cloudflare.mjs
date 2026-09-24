@@ -6,7 +6,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const output = join(root, 'dist');
 const publicFiles = [
   'AOA_매매차트.html', 'index.html', 'trainer.html',
-  'chart.css', 'trainer.css', 'chart.js', 'trainer.js',
+  'chart.css', 'trainer.css', 'chart.js', 'trainer.js', 'theme.js', 'theme.css',
   'lightweight-charts.js', 'position-labels.js', 'training-data.js',
   'simulator.js', 'comparison.js', 'data_validation.json',
   'LICENSE-lightweight-charts.txt', 'NOTICE-lightweight-charts.txt',
