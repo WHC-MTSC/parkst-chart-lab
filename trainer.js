@@ -20,13 +20,13 @@ candle.priceScale().applyOptions({scaleMargins:{top:.1,bottom:.2}});
 const volume=chart.addHistogramSeries({priceScaleId:'',priceFormat:{type:'volume'},lastValueVisible:false,priceLineVisible:false});volume.priceScale().applyOptions({scaleMargins:{top:.87,bottom:0}});
 const ownLine=chart.addLineSeries({lineVisible:false,pointMarkersVisible:false,crosshairMarkerVisible:false,lastValueVisible:false,priceLineVisible:false});
 const aoaLine=chart.addLineSeries({lineVisible:false,pointMarkersVisible:false,crosshairMarkerVisible:false,lastValueVisible:false,priceLineVisible:false});
-new ResizeObserver(()=>chart.resize($('trainingChart').clientWidth,$('trainingChart').clientHeight)).observe($('trainingChart'));
+new ResizeObserver(()=>{const el=$('trainingChart');if(el.clientWidth>0&&el.clientHeight>0)chart.resize(el.clientWidth,el.clientHeight);}).observe($('trainingChart'));
 
 const positionChart=LightweightCharts.createChart($('comparisonChart'),{height:150,layout:{background:{type:'solid',color:'#fff'},textColor:'#61767b',fontSize:11},grid:{vertLines:{color:'#f1f4f2'},horzLines:{color:'#edf2ef'}},timeScale:{timeVisible:true,secondsVisible:false},rightPriceScale:{minimumWidth:75},localization:{timeFormatter:t=>kst(t)}});
 const myPositionLine=positionChart.addLineSeries({color:'#386c9b',lineWidth:2,lineType:1,priceLineVisible:false,lastValueVisible:false,priceFormat:{type:'custom',formatter:v=>n(v)+'%'}});
 const referencePositionLine=positionChart.addLineSeries({color:'#b18b31',lineWidth:2,lineType:1,priceLineVisible:false,lastValueVisible:false,priceFormat:{type:'custom',formatter:v=>n(v)+'%'}});
 window.ParkstTheme?.bind([chart,positionChart]);
-new ResizeObserver(()=>positionChart.resize($('comparisonChart').clientWidth,150)).observe($('comparisonChart'));
+new ResizeObserver(()=>{const width=$('comparisonChart').clientWidth;if(width>0)positionChart.resize(width,150);}).observe($('comparisonChart'));
 
 function message(text=''){ $('orderMessage').textContent=text; }
 function cutoff(){return viewCursor??session.cursor;}

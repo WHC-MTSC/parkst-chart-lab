@@ -35,7 +35,7 @@ const plow=pchart.addLineSeries({color:'#b5c8bf',lineWidth:1,lineStyle:2,lineTyp
 const phigh=pchart.addLineSeries({color:'#b5c8bf',lineWidth:1,lineStyle:2,lineType:1,priceLineVisible:false,lastValueVisible:false,visible:false,crosshairMarkerVisible:false});
 pseries.createPriceLine({price:0,color:'#98afa5',lineWidth:1,lineStyle:2,axisLabelVisible:false});
 window.ParkstTheme?.bind([chart,pchart],p=>{pseries.applyOptions({color:p.position});plow.applyOptions({color:p.extreme});phigh.applyOptions({color:p.extreme});});
-new ResizeObserver(()=>{chart.resize($('priceChart').clientWidth,$('priceChart').clientHeight);pchart.resize($('positionChart').clientWidth,$('positionChart').clientHeight);}).observe($('priceChart'));
+new ResizeObserver(()=>{const price=$('priceChart'),position=$('positionChart');if(price.clientWidth>0&&price.clientHeight>0)chart.resize(price.clientWidth,price.clientHeight);if(position.clientWidth>0&&position.clientHeight>0)pchart.resize(position.clientWidth,position.clientHeight);}).observe($('priceChart'));
 async function unpack(raw){
  if(raw?.encoding!=='f64-gzip')return raw;
  if(typeof DecompressionStream==='undefined')throw Error('1분·5분봉은 최신 Chrome 또는 Edge에서 열어주세요.');
